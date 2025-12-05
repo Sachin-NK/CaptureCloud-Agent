@@ -8,7 +8,7 @@ settings = get_settings()
 supabase:Client = create_client(settings.supabase_url, settings.supabase_key)
 
 # Agent Supabase client 
-supabase_agent: Client = create_client(settings.supabase_url, settings.supabase_agent_key)
+supabase_agent: Client = create_client(settings.supabase_url, settings.supabase_service_key)
 
 def get_supabase() -> Client:
     return supabse
