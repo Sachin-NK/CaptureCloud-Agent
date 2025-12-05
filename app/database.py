@@ -5,7 +5,7 @@ from app.config import get_settings
 settings = get_settings()
 
 # Regular Supabase client - uses the public anon key
-supabse:Client = create_client(settings.supabase_url, settings.supabase_key)
+supabase:Client = create_client(settings.supabase_url, settings.supabase_key)
 
 # Agent Supabase client 
 supabase_agent: Client = create_client(settings.supabase_url, settings.supabase_agent_key)
