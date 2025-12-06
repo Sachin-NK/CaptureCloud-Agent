@@ -55,4 +55,3 @@ class BaseAgent:
             **kwargs
         })
         return result
-
