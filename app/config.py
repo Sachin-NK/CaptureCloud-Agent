@@ -1,4 +1,4 @@
-from pydantic_settings import BaseSettings 
+from pydantic_settings import BaseSettings, SettingsConfigDict 
 from functools import lru_cache 
 
 class Settings(BaseSettings):
@@ -16,10 +16,12 @@ class Settings(BaseSettings):
 
     backend_url: str = "http://localhost:8080"
     
-    class Config:
-       
-        env_file = ".env" 
-        case_sensitive = False 
+    # Pydantic v2 settings config
+    model_config = SettingsConfigDict(
+        env_file="app/.env",
+        case_sensitive=False,
+        extra="ignore",
+    )
 
 @lru_cache()  # Cache decorator 
 def get_settings():

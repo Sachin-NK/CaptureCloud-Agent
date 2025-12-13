@@ -1,5 +1,5 @@
 from .config import get_settings
-from .database import get_supabase, get_supabase_admin
+from .database import get_supabase, get_supabase_agent
 
 
 # Package metadata

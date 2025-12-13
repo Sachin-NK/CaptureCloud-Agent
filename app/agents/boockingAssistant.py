@@ -1,10 +1,9 @@
 import re
-from typing import Any, Dict,  Optional, List, TypedDict
+from typing import Any, Dict, List, TypedDict
 from datetime import datetime
 from langgraph.graph import StateGraph, END, Node
 from langchain_openai import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
-from app.models.schemas import BookingRequest, PhotographerMatch
 import json 
 from app.database import get_supabase_agent
 
