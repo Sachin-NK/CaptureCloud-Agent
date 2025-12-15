@@ -103,7 +103,6 @@ class ClientCommunicationAgent:
         state["personalization_applied"] = True 
         state["current_step"] = "personalized"
         
-        # Pass to next step
         return state
 
     async def send_message(self, state: CommunicationState) -> CommunicationState:
@@ -135,7 +134,6 @@ class ClientCommunicationAgent:
           }
             self.supabase.table("outgoing_messages").insert(message_record).execute()
         
-         # Message available in session state and session manager
         state["message_sent"] = True
         state["current_step"] = "completed"
 
@@ -182,9 +180,7 @@ class ClientCommunicationAgent:
             current_step="initialized"         
         )
         
-        # Run the state graph workflow
         final_state = await self.graph.ainvoke(initial_state)
         
-        # Return the final state with all results
         return final_state
     
