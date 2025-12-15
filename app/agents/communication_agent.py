@@ -72,7 +72,6 @@ class ClientCommunicationAgent:
             "context": json.dumps(state["context"], {})
         })
 
-        # Store the AI's generated message in state
         state["generated_message"] = response.content
         state["curreny_step"] = "message_generated"
 
@@ -82,7 +81,6 @@ class ClientCommunicationAgent:
         client_name = state["client_data"]["profile"].get("first_name", "Valued Client")
         booking_count = state["client_data"]["total_bookings"]
 
-        # Create instructions to personalize the message
         prompt = ChatPromptTemplate.from_messages([
             ("system", """You are a friendly communication specialist.Personalize this message for the client. Add warmth and context based on their history.Keep it professional but friendly."""),
             ("user","""Message: {message}
@@ -98,7 +96,6 @@ class ClientCommunicationAgent:
             "count": booking_count                  
         })
 
-        # Update the message with the personalized version
         state["generated_message"] = response.content
         state["personalization_applied"] = True 
         state["current_step"] = "personalized"
@@ -168,7 +165,6 @@ class ClientCommunicationAgent:
         )
     
     async def process_communication(self, client_id: str, message_type: str, context: dict = None) -> dict:
-        # Initialize the state for the workflow
         initial_state = CommunicationState(
             client_id=client_id,                   
             message_type=message_type,              
