@@ -7,21 +7,21 @@ import uvicorn
 settings = get_settings()
 
 app = FastAPI(
-    title= "CaptureCloud Agent Service"
-    description= " Ai powered agentic system for CaptureCloud photography mannagement system"
-    version= "1.0.0"
+    title="CaptureCloud Agent Service",
+    description="AI powered agentic system for CaptureCloud photography management system",
+    version="1.0.0",
 )
 
 # settingup CORS Middleware 
 
 app.add_middleware(
     CORSMiddleware,
-    allow_originss=[
+    allow_origins=[
         "http://localhost:3000",  # frontend
-        "http://localhost:8080"   # backend
+        "http://localhost:8080",  # backend
     ],
-    allow_credentials = True
-    allow_methods = ["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
