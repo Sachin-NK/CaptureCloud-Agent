@@ -1,12 +1,13 @@
 import re
 from typing import Any, Dict,  Optional, List, TypedDict
 from datetime import datetime
-from langgraph.graph import StateGraph, END, Node
+from langgraph.graph import StateGraph, END
 from langchain_openai import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
 from app.models.schemas import BookingRequest, PhotographerMatch
 import json 
 from app.database import get_supabase_agent
+from app.service.mcp_client import get_mcp_client
 
 class BookingState(TypedDict):
     message: str                   
@@ -22,7 +23,8 @@ class BookingAssistant:
     def __init__(self, llm: ChatOpenAI):
         self.llm = llm
         self.supabase = get_supabase_agent()
-        self.graph = self._build_graph()  
+        self.mcp = get_mcp_client()
+        self.graph = self._build_graph()
     
     def _build_graph(self) -> StateGraph:
         workflow = StateGraph(BookingState)
@@ -243,7 +245,7 @@ class BookingAssistant:
             response = self.supabase.table("photographers").select("""
                 id, portfolio_style, location, rating, is_active,
                 users!inner (first_name, last_name, email),
-                packages (id, name, price, duration_hours, description, is_active)
+                packages (id, name, price, description, is_active)
             """).eq("is_active", True).execute()
             
             photographers = response.data
@@ -286,7 +288,7 @@ class BookingAssistant:
             response = self.supabase.table("photographers").select("""
                 id, portfolio_style, location, rating, is_active,
                 users!inner (first_name, last_name, email),
-                packages (id, name, price, duration_hours, description, is_active)
+                packages (id, name, price, description, is_active)
             """).eq("is_active", True).execute()
             
             photographers = response.data
@@ -392,7 +394,6 @@ class BookingAssistant:
         photographer_price: float = 0,
         pool_min_price: float = 0
     ) -> str:
-        """Generate human-readable match reason"""
         
         reasons = []
         
@@ -410,9 +411,9 @@ class BookingAssistant:
         if photographer_price > 0 and pool_min_price > 0:
             if photographer_price == pool_min_price:
                 reasons.append("lowest price")
-            elif photographer_price <= pool_min_price * 1.2:  # Within 20% of lowest
+            elif photographer_price <= pool_min_price * 1.2:
                 reasons.append("great value")
-            elif photographer_price <= pool_min_price * 1.5:  # Within 50% of lowest
+            elif photographer_price <= pool_min_price * 1.5:
                 reasons.append("competitive pricing")
         
         req_location = requirements.get("location", "").lower()
@@ -435,7 +436,39 @@ class BookingAssistant:
         
         selected_package = min(packages, key=lambda x: x["price"])
         
-        # Send to backend
+        shoot_date = requirements.get("shoot_date")
+        if shoot_date:
+            availability_result = await self.mcp.check_availability(
+                photographer_id=photographer["id"],
+                date=shoot_date
+            )
+            
+            if not availability_result.get("available", True):
+                return {
+                    "success": False,
+                    "type": "not_available",
+                    "message": f"{photographer['name']} is not available on {shoot_date}. Would you like to check other dates?",
+                    "reason": availability_result.get("reason", "Unavailable")
+                }
+        
+        location = requirements.get("location")
+        if location and shoot_date and requirements.get("outdoor", False):
+            weather_result = await self.mcp.get_weather_forecast(location, shoot_date)
+            
+            if not weather_result.get("good_for_outdoor_shoot", True):
+                weather_warning = {
+                    "weather_warning": True,
+                    "weather_info": weather_result,
+                    "recommendation": "Consider indoor backup or rescheduling"
+                }
+            else:
+                weather_warning = {
+                    "weather_info": weather_result,
+                    "weather_status": "Good conditions expected!"
+                }
+        else:
+            weather_warning = {}
+        
         booking_request = {
             "client_id": client_id,
             "photographer_id": photographer["id"],
@@ -456,7 +489,7 @@ class BookingAssistant:
                 if response.status_code == 200:
                     booking_result = response.json()
                     
-                    return {
+                    response_data = {
                         "success": True,
                         "type": "booking_created",
                         "message": f"Perfect! I've sent a booking request to {photographer['name']} for the {selected_package['name']} (${selected_package['price']}).",
@@ -469,6 +502,11 @@ class BookingAssistant:
                         },
                         "next_steps": f"{photographer['name']} will be notified and will respond within 24 hours."
                     }
+                    
+                    if weather_warning:
+                        response_data.update(weather_warning)
+                    
+                    return response_data
                 else:
                     return {
                         "success": False,
@@ -483,3 +521,49 @@ class BookingAssistant:
                 "message": "I found the photographer but couldn't connect to our booking system. Please try again."
             }
     
+    async def get_enhanced_recommendations(self, requirements: Dict) -> List[Dict[str, Any]]:
+        
+        basic_recommendations = await self._get_photographer_recommendations(requirements)
+        
+        if not basic_recommendations:
+            return []
+        
+        enhanced_recommendations = []
+        shoot_date = requirements.get("shoot_date")
+        location = requirements.get("location")
+        
+        for photographer in basic_recommendations:
+            enhanced_rec = photographer.copy()
+            
+            if shoot_date:
+                availability = await self.mcp.check_availability(
+                    photographer_id=photographer["id"],
+                    date=shoot_date
+                )
+                enhanced_rec["availability"] = availability
+                
+                if not availability.get("available", True):
+                    continue
+            
+            if location and shoot_date and requirements.get("outdoor", False):
+                weather = await self.mcp.get_weather_forecast(location, shoot_date)
+                enhanced_rec["weather_forecast"] = weather
+                
+                if weather.get("good_for_outdoor_shoot", True):
+                    enhanced_rec["match_score"] = enhanced_rec.get("match_score", 0) + 5
+            
+            enhanced_recommendations.append(enhanced_rec)
+        
+        enhanced_recommendations.sort(key=lambda x: x.get("match_score", 0), reverse=True)
+        
+        return enhanced_recommendations
+    
+    async def research_photography_trends(self, topic: str, location: str = None) -> Dict[str, Any]:
+        return await self.mcp.photography_research(
+            topic=topic,
+            location=location,
+            year="2024"
+        )
+    
+    async def find_photo_locations(self, city: str, photo_type: str = "general") -> Dict[str, Any]:
+        return await self.mcp.find_photo_locations(city, photo_type)

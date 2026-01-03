@@ -3,7 +3,7 @@ from langchain.agents import AgentExecutor, create_openai_functions_agent
 from langchain.prompts import ChatPromptTemplate
 from langchain.tools import Tool
 from typing import List, Dict, Any, Optional
-from app.database import get_supabase_admin
+from app.database import get_supabase_agent
 
 class BaseAgent:
     
@@ -18,7 +18,7 @@ class BaseAgent:
         )
             
         self.tools = tools or []
-        self.supabase = get_supabase_admin()
+        self.supabase = get_supabase_agent()
         
         if self.tools:
             self.agent_executor = self._create_agent_executor()

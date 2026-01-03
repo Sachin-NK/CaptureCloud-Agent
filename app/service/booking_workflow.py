@@ -19,26 +19,14 @@ class BookingWorkflowService:
         package_id: str,
         requirements: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """
-        Complete booking workflow with availability checking
-        
-        Args:
-            client_id: Client making the request
-            photographer_id: Target photographer
-            package_id: Selected package
-            requirements: Booking requirements (date, location, etc.)
-        
-        Returns:
-            Booking result with status and details
-        """
         
         try:
-            # Step 1: Validate photographer and package
+                                                       
             photographer_info = await self._get_photographer_info(photographer_id, package_id)
             if not photographer_info["success"]:
                 return photographer_info
             
-            # Step 2: Check availability (simple date check)
+                                                            
             availability_result = await self._check_availability(
                 photographer_id,
                 requirements.get("shoot_date", "2024-12-15")
@@ -53,7 +41,7 @@ class BookingWorkflowService:
                     "suggested_action": "choose_different_date_or_photographer"
                 }
             
-            # Step 3: Create booking in Java backend
+                                                    
             backend_result = await self._create_backend_booking(
                 client_id,
                 photographer_id,
@@ -64,9 +52,9 @@ class BookingWorkflowService:
             if not backend_result["success"]:
                 return backend_result
             
-            # Step 4: Booking request sent - Java backend handles the rest
+                                                                          
             
-            # Step 5: Return success response
+                                             
             return {
                 "success": True,
                 "type": "booking_created",
@@ -91,12 +79,17 @@ class BookingWorkflowService:
             }
     
     async def _get_photographer_info(self, photographer_id: str, package_id: str) -> Dict[str, Any]:
-        """Get photographer and package information"""
         
         try:
-            db = await get_supabase_agent()
+            db = get_supabase_agent()
+            if not db:
+                return {
+                    "success": False,
+                    "type": "database_error",
+                    "message": "Database not configured."
+                }
             
-            # Get photographer with package
+                                           
             response = db.table("photographers").select("""
                 id, portfolio_style, location, rating, is_active,
                 users!inner (first_name, last_name, email),
@@ -140,7 +133,6 @@ class BookingWorkflowService:
             }
     
     async def _check_availability(self, photographer_id: str, date: str) -> Dict[str, Any]:
-        """Check photographer availability through availability service"""
         
         try:
             result = await self.availability_service.check_availability(
@@ -162,7 +154,6 @@ class BookingWorkflowService:
         package_id: str,
         requirements: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """Create booking in Java backend"""
         
         try:
             booking_request = {
@@ -204,11 +195,10 @@ class BookingWorkflowService:
 
 
 
-# Global service instance
+                         
 _booking_workflow_service: Optional[BookingWorkflowService] = None
 
 def get_booking_workflow_service() -> BookingWorkflowService:
-    """Get or create the global booking workflow service instance"""
     global _booking_workflow_service
     if _booking_workflow_service is None:
         _booking_workflow_service = BookingWorkflowService()
