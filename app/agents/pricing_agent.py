@@ -34,45 +34,57 @@ class PricingPackageAgent(BaseAgent):
 
         workflow = StateGraph(PricingState)
         
-        # Add workflow steps
+                            
         workflow.add_node("analyze_market", self.analyze_market)
         workflow.add_node("get_competitor_prices", self.get_competitor_prices)
         workflow.add_node("analyze_photographer_history", self.analyze_photographer_history)
         workflow.add_node("calculate_optimal_price", self.calculate_optimal_price)
         workflow.add_node("generate_recommendation", self.generate_recommendation)
         
-        workflow.set_entry_point("analyze_market")  # Start
+        workflow.set_entry_point("analyze_market")         
         workflow.add_edge("analyze_market", "get_competitor_prices")
         workflow.add_edge("get_competitor_prices", "analyze_photographer_history")
         workflow.add_edge("analyze_photographer_history", "calculate_optimal_price")
         workflow.add_edge("calculate_optimal_price", "generate_recommendation")
-        workflow.add_edge("generate_recommendation", END)  # Finish
+        workflow.add_edge("generate_recommendation", END)          
         
         return workflow.compile()
     
     async def analyze_market(self, state: PricingState) -> PricingState:
-        
-        # Get completed bookings for same service type and location
-        response = self.supabase.table("bookings").select(
-            "final_price, location, service_type, created_at"
-        ).eq("service_type", state["service_type"]).eq(
-            "location", state["location"]
-        ).eq("status", "completed").execute()
-        
-        bookings = response.data
-        
-        # Calculate market statistics if we have data
-        if bookings:
-            prices = [b["final_price"] for b in bookings if b.get("final_price")]
+                                                           
+        if not self.supabase:
             state["market_data"] = {
-                "average_price": statistics.mean(prices) if prices else 0,  
-                "median_price": statistics.median(prices) if prices else 0,  
-                "min_price": min(prices) if prices else 0,                   
-                "max_price": max(prices) if prices else 0,                   
-                "sample_size": len(prices)                                   
+                "average_price": 0,
+                "median_price": 0,
+                "min_price": 0,
+                "max_price": 0,
+                "sample_size": 0
+            }
+            state["current_step"] = "market_analyzed"
+            return state
+
+        try:
+                                                                       
+            response = self.supabase.table("bookings").select(
+                "final_price, location, service_type, created_at"
+            ).eq("service_type", state["service_type"]).eq(
+                "location", state["location"]
+            ).eq("status", "completed").execute()
+            bookings = response.data
+        except Exception:
+            bookings = []
+
+                                                     
+        if bookings:
+            prices = [b.get("final_price") for b in bookings if b.get("final_price") is not None]
+            state["market_data"] = {
+                "average_price": statistics.mean(prices) if prices else 0,
+                "median_price": statistics.median(prices) if prices else 0,
+                "min_price": min(prices) if prices else 0,
+                "max_price": max(prices) if prices else 0,
+                "sample_size": len(prices)
             }
         else:
-            
             state["market_data"] = {
                 "average_price": 0,
                 "median_price": 0,
@@ -85,21 +97,27 @@ class PricingPackageAgent(BaseAgent):
         return state
     
     async def get_competitor_prices(self, state: PricingState) -> PricingState:
-        
-        response = self.supabase.table("photographers").select(
-            "id, base_price, hourly_rate, location"
-        ).eq("location", state["location"]).execute()
-        
-        photographers = response.data
+                                                        
+        if not self.supabase:
+            state["competitor_prices"] = []
+            state["current_step"] = "competitors_analyzed"
+            return state
+
+        try:
+            response = self.supabase.table("photographers").select(
+                "id, base_price, hourly_rate, location"
+            ).eq("location", state["location"]).execute()
+            photographers = response.data or []
+        except Exception:
+            photographers = []
+
         competitor_prices = []
-        
         for photographer in photographers:
-            if photographer["id"] != state["photographer_id"]:
-                base = photographer.get("base_price", 0)
-                hourly = photographer.get("hourly_rate", 0)
+            if photographer.get("id") != state["photographer_id"]:
+                base = photographer.get("base_price", 0) or 0
+                hourly = photographer.get("hourly_rate", 0) or 0
                 estimated = base + (hourly * state["duration_hours"])
-                
-                if estimated > 0:
+                if estimated and estimated > 0:
                     competitor_prices.append(estimated)
         
         state["competitor_prices"] = competitor_prices
@@ -107,24 +125,35 @@ class PricingPackageAgent(BaseAgent):
         return state
     
     async def analyze_photographer_history(self, state: PricingState) -> PricingState:
+                                         
+        if not self.supabase:
+            state["photographer_history"] = {
+                "average_price": 0,
+                "average_rating": 0,
+                "total_bookings": 0,
+                "recent_bookings": 0
+            }
+            state["current_step"] = "history_analyzed"
+            return state
 
-        response = self.supabase.table("bookings").select(
-            "final_price, rating, duration_hours, created_at"
-        ).eq("photographer_id", state["photographer_id"]).eq(
-            "status", "completed"
-        ).execute()
-        
-        bookings = response.data
-        
+        try:
+            response = self.supabase.table("bookings").select(
+                "final_price, rating, duration_hours, created_at"
+            ).eq("photographer_id", state["photographer_id"]).eq(
+                "status", "completed"
+            ).execute()
+            bookings = response.data or []
+        except Exception:
+            bookings = []
+
         if bookings:
-            prices = [b["final_price"] for b in bookings if b.get("final_price")]
-            ratings = [b["rating"] for b in bookings if b.get("rating")]
-            
+            prices = [b.get("final_price") for b in bookings if b.get("final_price") is not None]
+            ratings = [b.get("rating") for b in bookings if b.get("rating") is not None]
             state["photographer_history"] = {
                 "average_price": statistics.mean(prices) if prices else 0,
                 "average_rating": statistics.mean(ratings) if ratings else 0,
                 "total_bookings": len(bookings),
-                "recent_bookings": len([b for b in bookings if self._is_recent(b["created_at"])])
+                "recent_bookings": len([b for b in bookings if b.get("created_at") and self._is_recent(b["created_at"])])
             }
         else:
             state["photographer_history"] = {
@@ -205,7 +234,7 @@ class PricingPackageAgent(BaseAgent):
         numbers = re.findall(r'\d+\.?\d*', llm_response)
         if numbers:
             price = float(numbers[0])
-            # Sanity check
+                          
             if 50 <= price <= 10000:
                 return price
         

@@ -25,13 +25,13 @@ class ClientCommunicationAgent:
     def _build_graph(self) -> StateGraph:
         workflow = StateGraph(CommunicationState)
 
-        # Define nodes
+                      
         workflow.add_node("fetch_client_data", self.fetch_client_data)
         workflow.add_node("generate_message", self.generate_message)
         workflow.add_node("personalize", self.personalize)
         workflow.add_node("send_message", self.send_message)
 
-        # Define the order of execution
+                                       
         workflow.set_entry_point("fetch_client_data")
         workflow.add_edge("fetch_client_data", "generate_message")
         workflow.add_edge("generate_message", "personalize")
@@ -56,12 +56,12 @@ class ClientCommunicationAgent:
     async def generate_message(self, state: CommunicationState) -> CommunicationState:
         message_type = state["message_type"]
         
-        # Different templates for different message types
+                                                         
         templates = {
-            "questionnaire": self._get_questionnaire_prompt(),  # Pre-shoot questions
-            "reminder": self._get_reminder_prompt(),            # Shoot day reminder
-            "followup": self._get_followup_prompt(),            # Post-shoot follow-up
-            "faq": self._get_faq_prompt()                       # Answer questions
+            "questionnaire": self._get_questionnaire_prompt(),                       
+            "reminder": self._get_reminder_prompt(),                                
+            "followup": self._get_followup_prompt(),                                  
+            "faq": self._get_faq_prompt()                                         
         }
 
         prompt = templates.get(message_type, templates["faq"])
@@ -179,4 +179,3 @@ class ClientCommunicationAgent:
         final_state = await self.graph.ainvoke(initial_state)
         
         return final_state
-    

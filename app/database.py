@@ -2,26 +2,49 @@ from typing import Optional
 from supabase import create_client, Client
 from app.config import get_settings
 
-settings = get_settings()
+"""
+Lazy Supabase client initialization to avoid import-time failures.
+Clients are created on first access and cached. If initialization fails
+(e.g., environment/package mismatch), functions will return None and
+callers should handle it at runtime.
+"""
 
-# Regular Supabase client - uses the public anon key
-supabase:Client = create_client(settings.supabase_url, settings.supabase_key)
+_supabase: Optional[Client] = None
+_supabase_agent: Optional[Client] = None
 
-# Agent Supabase client 
-supabase_agent: Client = create_client(settings.supabase_url, settings.supabase_service_key)
+def _ensure_clients():
+    global _supabase, _supabase_agent
+    if _supabase is not None and _supabase_agent is not None:
+        return
+    settings = get_settings()
+    try:
+        if _supabase is None:
+            _supabase = create_client(settings.supabase_url, settings.supabase_key)
+    except Exception as e:
+        _supabase = None
+    try:
+        if _supabase_agent is None:
+            _supabase_agent = create_client(settings.supabase_url, settings.supabase_service_key)
+    except Exception as e:
+        _supabase_agent = None
 
-def get_supabase() -> Client:
-    return supabase
+def get_supabase() -> Optional[Client]:
+    _ensure_clients()
+    return _supabase
 
-def get_supabase_agent() -> Client:
-    return supabase_agent
+def get_supabase_agent() -> Optional[Client]:
+    _ensure_clients()
+    return _supabase_agent
 
 def set_user_context(db: Client, access_token: str, refresh_token: Optional[str] = None):
-    
+    if not db:
+        return
     db.auth.set_session({
         "access_token": access_token,
         "refresh_token": refresh_token
     })
 
 def clear_user_context(db: Client):
+    if not db:
+        return
     db.auth.sign_out()

@@ -52,7 +52,7 @@ async def chat_with_assistant(request: ChatRequest):
         
         session_state = get_session(session_id)
         
-        # Route to appropriate agent
+                                    
         agent_type = determine_agent(message)
         
         if agent_type == "pricing":
@@ -96,23 +96,28 @@ async def chat_with_assistant(request: ChatRequest):
 async def create_booking_legacy(request: BookingRequest):
  
     try:
-        requirements = request.requirements
-        message = f"I need a {requirements.get('preferred_style', [''])[0]} photographer"
-        if requirements.get('shoot_date'):
-            message += f" for {requirements['shoot_date']}"
-        if requirements.get('location'):
-            message += f" in {requirements['location']}"
+        req = request.requirements
+                                                                                
+        message_parts = ["I'd like to book a photographer"]
+        if req.shoot_date:
+            message_parts.append(f"for {req.shoot_date}")
+        if req.location:
+            message_parts.append(f"in {req.location}")
+        if (req.budget_min is not None) or (req.budget_max is not None):
+            bmin = f"${req.budget_min:.0f}" if req.budget_min is not None else "unspecified"
+            bmax = f"${req.budget_max:.0f}" if req.budget_max is not None else "unspecified"
+            message_parts.append(f"with a budget between {bmin} and {bmax}")
+        if req.additional_notes:
+            message_parts.append(f"Notes: {req.additional_notes}")
+        message = " ".join(message_parts)
         
         result = await booking_assistant.handle_booking_request(
             message=message,
             client_id=request.client_id
         )
         
-        return {
-            "success": result.get("success", False),
-            "message": result.get("message", ""),
-            "session_id": result.get("session_id")
-        }
+                                                            
+        return result
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -166,7 +171,7 @@ async def reschedule_booking(booking_id: str, new_date: str):
         message = f"I need to reschedule booking {booking_id} to {new_date}"
         result = await booking_assistant.handle_booking_request(
             message=message,
-            client_id="system"  # System-initiated reschedule
+            client_id="system"                               
         )
         return result
     except Exception as e:
