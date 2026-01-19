@@ -2,12 +2,6 @@ from typing import Optional
 from supabase import create_client, Client
 from app.config import get_settings
 
-"""
-Lazy Supabase client initialization to avoid import-time failures.
-Clients are created on first access and cached. If initialization fails
-(e.g., environment/package mismatch), functions will return None and
-callers should handle it at runtime.
-"""
 
 _supabase: Optional[Client] = None
 _supabase_agent: Optional[Client] = None
